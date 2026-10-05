@@ -1,12 +1,11 @@
 package com.personal;
 
 import java.util.ArrayDeque;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SlidingWindowRateLimiter implements RateLimiter{
     
-    private  Map<String, RollingUserState> windowState = new HashMap<>();
+    private final ConcurrentHashMap<String, RollingUserState> windowState = new ConcurrentHashMap<>();
 
     private static final int LIMIT = 5;
     private static final long WINDOW_SIZE_MS = 10_000;
@@ -18,19 +17,16 @@ public class SlidingWindowRateLimiter implements RateLimiter{
        
         // if the user has never made a request, the map will not have an entry for the user
         // create the user entry for the userId and allow the user
-        if (!windowState.containsKey(userId)) {
-            System.out.println("user " + userId + " does not exists, creating it");
-            RollingUserState state = new RollingUserState();
-            state.timeStamps =  new ArrayDeque<>();
-            state.timeStamps.offer(currentTime);
-
-            windowState.put(userId, state);
-            return true;
-
-        }
+       
+        RollingUserState state = windowState.computeIfAbsent(userId, key -> {
+                            RollingUserState newState  = new RollingUserState();
+                            newState .timeStamps =  new ArrayDeque<>();
+                            return newState;
+                            }
+                        );
         
+        synchronized(state.lock) {
         // The cutofftime is the time of the current timestamp minus the window size
-        RollingUserState state = windowState.get(userId);
         long cutofftime = currentTime - WINDOW_SIZE_MS;
         System.out.println("cutofftime:" + cutofftime); 
 
@@ -49,7 +45,7 @@ public class SlidingWindowRateLimiter implements RateLimiter{
             state.timeStamps.offer(currentTime);
             return  true;
         }
-    
+        }
     System.out.println("User " + userId + " has already exceeded rate quota, try after sometime");
     return false;
     }

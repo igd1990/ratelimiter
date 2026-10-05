@@ -1,9 +1,14 @@
 package com.personal;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 import java.lang.Thread;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SlidingWindowRateLimiterTest {
     
@@ -42,5 +47,37 @@ public class SlidingWindowRateLimiterTest {
         boolean result6 = limiter.tryAcquire("Boby"); //request 6
         assertTrue(result6);
 
+    }
+
+    @Test
+    public void concurrentRequestsShouldRespectLimit() throws InterruptedException {
+
+        SlidingWindowRateLimiter limiter =
+                new SlidingWindowRateLimiter();
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(100);
+
+        AtomicInteger allowed = new AtomicInteger(0);
+        AtomicInteger rejected = new AtomicInteger(0);     
+        
+        for (int i = 0; i < 100; i++) {
+            executor.submit(() -> {
+                    boolean result = limiter.tryAcquire("alice");
+
+                    if (result) {
+                        allowed.incrementAndGet();
+                    }
+                    else {
+                        rejected.incrementAndGet();
+                    }
+                });
+        }
+        
+        executor.shutdown();
+        executor.awaitTermination(5, TimeUnit.SECONDS);
+
+        assertEquals(5, allowed.get());
+        assertEquals(95, rejected.get());
     }
 }

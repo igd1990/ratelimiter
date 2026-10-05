@@ -5,4 +5,5 @@ import java.util.Queue;
 public class RollingUserState {
 
     Queue<Long> timeStamps;
+    final Object lock = new Object();
 }
